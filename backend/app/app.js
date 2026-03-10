@@ -123,6 +123,63 @@ app.get('/order/:orderId/dishes', (req, res) => {
   )
 })
 
+// --- OPTIMIZED ENDPOINTS ---
+
+// Get specific restaurant detail
+app.get('/restaurants/:id', (req, res) => {
+  db.query('SELECT * FROM restaurantes WHERE restauranteID = ?', [req.params.id], (err, results) => {
+    if (err) {
+      console.error('Error executing query:', err)
+      res.status(500).json({ error: 'Internal Server Error' })
+    } else {
+      res.json(results[0] || null)
+    }
+  })
+})
+
+// Get dishes for a specific restaurant
+app.get('/restaurants/:id/dishes', (req, res) => {
+  db.query('SELECT * FROM platos WHERE restauranteID = ?', [req.params.id], (err, results) => {
+    if (err) {
+      console.error('Error executing query:', err)
+      res.status(500).json({ error: 'Internal Server Error' })
+    } else {
+      res.json(results)
+    }
+  })
+})
+
+// Get orders for a specific restaurant with Customer Info (JOIN)
+app.get('/restaurants/:id/orders', (req, res) => {
+  const query = `
+    SELECT p.*, cl.nombre, cl.apellido1, cl.apellido2, cl.sexo, cl.poblacion
+    FROM pedidos p
+    JOIN clientes cl ON p.clienteID = cl.clienteID
+    WHERE p.restauranteID = ?
+  `
+  db.query(query, [req.params.id], (err, results) => {
+    if (err) {
+      console.error('Error executing query:', err)
+      res.status(500).json({ error: 'Internal Server Error' })
+    } else {
+      // Map it to look like the client-side enriched format
+      const enrichedOrders = results.map(row => ({
+        ...row,
+        customer: {
+          nombre: row.nombre,
+          apellido1: row.apellido1,
+          apellido2: row.apellido2,
+          sexo: row.sexo,
+          poblacion: row.poblacion
+        }
+      }))
+      res.json(enrichedOrders)
+    }
+  })
+})
+
+// ---------------------------
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`)
