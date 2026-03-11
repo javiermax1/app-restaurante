@@ -54,11 +54,16 @@ docker compose up -d
 
     npm create vite@latest
 
-    Estructura estandar de carpetas y ficheros de proyecto creado con Vite
+    Estructura estándar de carpetas y ficheros de proyecto creado con Vite
 
 ### Intalamos React Bootstrap
 
 npm install react-bootstrap bootstrap
+
+### Instalamos React Router
+
+npm install react-router-dom
+
 
 ### Instalamos gh-pages para publicar en GitHub
 
