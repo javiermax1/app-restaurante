@@ -7,6 +7,8 @@ import {
   Card,
   Nav,
   Button,
+  Modal,
+  ListGroup,
   Spinner,
   Alert,
   Badge,
@@ -26,31 +28,50 @@ const RestaurantDetails = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const API_URL = import.meta.env.VITE_API_URL;
+        const API_URL = import.meta.env.VITE_API_URL
 
-        const [resRest, resDishes, resOrders] = await Promise.all([
-          fetch(`${API_URL}/restaurants/${id}`),
-          fetch(`${API_URL}/restaurants/${id}/dishes`),
-          fetch(`${API_URL}/restaurants/${id}/orders`),
+        const [resRest, resDishes, resOrders, resCustomers] = await Promise.all([
+          fetch(`${API_URL}/restaurants`),
+          fetch(`${API_URL}/dishes`),
+          fetch(`${API_URL}/orders`),
+          fetch(`${API_URL}/customers`),
         ])
 
-        if (!resRest.ok || !resDishes.ok || !resOrders.ok) {
+        if (!resRest.ok || !resDishes.ok || !resOrders.ok || !resCustomers.ok) {
           throw new Error(
             'No se pudo establecer conexión con el sistema central',
           )
         }
 
-        const [restaurantData, dishesData, ordersData] = await Promise.all([
-          resRest.json(),
-          resDishes.json(),
-          resOrders.json(),
-        ])
+        const [restaurantsData, dishesData, ordersData, customersData] =
+          await Promise.all([
+            resRest.json(),
+            resDishes.json(),
+            resOrders.json(),
+            resCustomers.json(),
+          ])
 
+        // Filtrado en el cliente basado en la nueva estructura lógica
+        const restaurantData = restaurantsData.find(
+          (r) => String(r.restauranteID) === String(id),
+        )
         if (!restaurantData) throw new Error('Restaurante no encontrado')
 
+        const filteredDishes = dishesData.filter(
+          (d) => String(d.restauranteID) === String(id),
+        )
+        const filteredOrders = ordersData
+          .filter((o) => String(o.restauranteID) === String(id))
+          .map((order) => ({
+            ...order,
+            customer: customersData.find(
+              (c) => String(c.clienteID) === String(order.clienteID),
+            ),
+          }))
+
         setRestaurant(restaurantData)
-        setDishes(dishesData)
-        setOrders(ordersData)
+        setDishes(filteredDishes)
+        setOrders(filteredOrders)
       } catch (err) {
         setError(err.message)
       } finally {
@@ -142,9 +163,43 @@ const RestaurantDetails = () => {
           </Badge>
         ),
       },
+      {
+        name: 'Detalle Pedido',
+        button: true,
+        cell: (row) => (
+          <Button
+            size="sm"
+            variant="outline-dark"
+            onClick={() => handleViewOrderDishes(row.pedidoID)}
+            className="rounded-pill px-3"
+          >
+            Ver Platos
+          </Button>
+        ),
+      },
     ],
     [],
   )
+
+  const [selectedOrderDishes, setSelectedOrderDishes] = useState([])
+  const [showOrderModal, setShowOrderModal] = useState(false)
+  const [loadingOrderDishes, setLoadingOrderDishes] = useState(false)
+
+  const handleViewOrderDishes = async (orderId) => {
+    try {
+      setLoadingOrderDishes(true)
+      const API_URL = import.meta.env.VITE_API_URL
+      const response = await fetch(`${API_URL}/order/${orderId}/dishes`)
+      if (!response.ok) throw new Error('No se pudieron cargar los platos')
+      const data = await response.json()
+      setSelectedOrderDishes(data)
+      setShowOrderModal(true)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setLoadingOrderDishes(false)
+    }
+  }
 
   const customStyles = {
     headRow: {
@@ -245,6 +300,42 @@ const RestaurantDetails = () => {
           </Card>
         </Col>
       </Row>
+
+      <Modal show={showOrderModal} onHide={() => setShowOrderModal(false)} centered size="lg">
+        <Modal.Header closeButton className="border-0 pb-0">
+          <Modal.Title className="fw-bold">Detalle de Platos del Pedido</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-4">
+          {loadingOrderDishes ? (
+            <div className="text-center p-5">
+              <Spinner animation="border" variant="primary" />
+            </div>
+          ) : (
+            <ListGroup variant="flush">
+              {selectedOrderDishes.length > 0 ? (
+                selectedOrderDishes.map((dish, index) => (
+                  <ListGroup.Item key={index} className="d-flex justify-content-between align-items-center py-3 border-light">
+                    <div>
+                      <h6 className="mb-0 fw-bold">{dish.plato}</h6>
+                      <small className="text-muted">{dish.descripcion || 'Sin descripción'}</small>
+                    </div>
+                    <Badge bg="primary" pill className="p-2 px-3">
+                      {parseFloat(dish.precio).toFixed(2)} €
+                    </Badge>
+                  </ListGroup.Item>
+                ))
+              ) : (
+                <div className="text-center p-4 text-muted">No hay platos registrados en este pedido.</div>
+              )}
+            </ListGroup>
+          )}
+        </Modal.Body>
+        <Modal.Footer className="border-0">
+          <Button variant="dark" onClick={() => setShowOrderModal(false)} className="rounded-pill px-4">
+            Cerrar
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   )
 }
